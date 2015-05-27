@@ -1,6 +1,13 @@
 #!/usr/bin/env python
+# encoding: utf-8
 ###############################################################################
+# sagews2ipynb Convert a SageMathCloud worksheet into an iPython notebook.
+# This is useful because iPython notebooks are the only format
+# that works both for pushing/pulling files from sagemathcloud.
 #
+# Mostly a small modification of sagews2pdf.py by William Stein.
+#
+# Original copyright follows:
 # SageMathCloud: A collaborative web-based interface to Sage, IPython, LaTeX and the Terminal.
 #
 #    Copyright (C) 2014, William Stein
@@ -23,6 +30,11 @@
 
 
 """
+This is a modified sagews2pdf.py so that it outputs an iPython notebook. 
+Original copyright follows.
+
+
+
 Copyright (c) 2014, William Stein
 All rights reserved.
 
@@ -224,114 +236,155 @@ class Cell(object):
             self.output = self.output_uuid = ''
 
 
-    def latex(self):
+    def dict_list(self):
         """
-        Returns the latex represenation of this cell along with a list of commands
+        Returns a list(dict) representation of this cell, along with a list of commands
         that should be executed in the shell in order to obtain remote data files,
         etc., to render this cell.
         """
         self._commands = []
-        return self.latex_input() + self.latex_output(), self._commands
+        self._json=[]
+        self.serialize_input()
+        self.serialize_output()
+        return self._json
+        # append(self.latex_output()), self._commands
 
-    def latex_input(self):
+    def serialize_input(self):
+        """Return a dict representation of self."""
+        d = {
+                'cell_type': 'code',
+                'execution_count': None,
+                'metadata': {
+                    'collapsed': False,
+                    'autoscroll': 'auto'
+                },
+                'source': [s],
+                'outputs': []
+            }
         if 'i' in self.input_codes:   # hide input
-            return "\\begin{lstlisting}\n\\end{lstlisting}"
-        if self.input.strip():
-            return "\\begin{lstlisting}\n%s\n\\end{lstlisting}"%self.input
-        else:
-            return ""
+            d['metadata']['collapsed'] = True
+            
+        self._json.append(d)
+        
 
-    def latex_output(self):
-        s = ''
+    def serialize_output(self):
+        d={}
         if 'o' in self.input_codes:  # hide output
-            return s
+            pass
         for x in self.output:
             if 'stdout' in x:
-                s += "\\begin{verbatim}" + wrap(x['stdout']) + "\\end{verbatim}"
+                d['output_data']='stream'
+                d['name']='stdout'
+                d['text']=[wrap(x['stdout'])]
+                self._json[0]['outputs'].append(d)
             if 'stderr' in x:
-                s += "{\\color{dredcolor}\\begin{verbatim}" + wrap(x['stderr']) + "\\end{verbatim}}"
+                d['output_data']='stream'
+                d['name']='stderr'
+                d['text']=[wrap(x['stderr'])]
+                self._json[0]['outputs'].append(d)
             if 'code' in x:
                 # TODO: for now ignoring that not all code is Python...
-                s += "\\begin{lstlisting}" + x['code']['source'] + "\\end{lstlisting}"
+                # s += "\\begin{lstlisting}" + x['code']['source'] + "\\end{lstlisting}"
+                # Should this be in a cell by itself?
+                d['output_data']='stream'
+                d['name']='stdout'
+                d['text']=[wrap(x['code']['source'])]
+                self._json[0]['outputs'].append(d)
             if 'html' in x:
-                s += html2tex(x['html'])
+                # s += html2tex(x['html'])
+                d['output_data']='display_data',
+                d['data']={
+                    'text/html': x['html']
+                }
+                self._json[0]['outputs'].append(d)
             if 'md' in x:
-                s += md2tex(x['md'])
+                # s += md2tex(x['md'])
+                d={
+                    'cell_type': 'markdown',
+                    'metadata': '',
+                    'source': x['html']
+                }
+                self._json.append(d)
+                
             if 'interact' in x:
                 pass
             if 'tex' in x:
-                val = x['tex']
-                if 'display' in val:
-                    s += "$$%s$$"%val['tex']
-                else:
-                    s += "$%s$"%val['tex']
-            if 'file' in x:
-                val = x['file']
-                if 'url' in val:
-                    target = val['url']
-                    filename = os.path.split(target)[-1]
-                else:
-                    filename = os.path.split(val['filename'])[-1]
-                    target = "%s/blobs/%s?uuid=%s"%(site, escape_path(filename), val['uuid'])
+                # val = x['tex']
+                # if 'display' in val:
+                #     s += "$$%s$$"%val['tex']
+                # else:
+                #     s += "$%s$"%val['tex']
+                pass
+            if 'file' in x:                
+                pass
+                # val = x['file']
+                # if 'url' in val:
+                #     target = val['url']
+                #     filename = os.path.split(target)[-1]
+                # else:
+                #     filename = os.path.split(val['filename'])[-1]
+                #     target = "%s/blobs/%s?uuid=%s"%(site, escape_path(filename), val['uuid'])
+                #
+                # base, ext = os.path.splitext(filename)
+                # ext = ext.lower()[1:]
+                # if ext in ['jpg', 'png', 'eps', 'pdf', 'svg']:
+                #     img = ''
+                #     i = target.find("/raw/")
+                #     if i != -1:
+                #         src = os.path.join(os.environ['HOME'], target[i+5:])
+                #         if os.path.abspath(src) != os.path.abspath(filename):
+                #             try:
+                #                 shutil.copyfile(src, filename)
+                #             except Exception, msg:
+                #                 print msg
+                #         img = filename
+                #     else:
+                #         # Get the file from remote server
+                #         c = 'rm -f "%s"; wget "%s" --output-document="%s"'%(filename, target, filename)
+                #         # If we succeeded, convert it to a png, which is what we can easily embed
+                #         # in a latex document (svg's don't work...)
+                #         self._commands.append(c)
+                #         if ext == 'svg':
+                #             # hack for svg files; in perfect world someday might do something with vector graphics, see http://tex.stackexchange.com/questions/2099/how-to-include-svg-diagrams-in-latex
+                #             # Now we live in a perfect world, and proudly introduce inkscape as a dependency for SMC :-)
+                #             #c += ' && rm -f "%s"; convert -antialias -density 150 "%s" "%s"'%(base+'.png',filename,base+'.png')
+                #             # converts the svg file into pdf
+                #             c += ' && rm -f "%s"; inkscape --without-gui --export-pdf=%s "%s"'%(base+'.pdf',base+'.pdf',filename)
+                #             self._commands.append(c)
+                #             filename = base+'.pdf'
+                #         img = filename
+                #     s += '\\includegraphics[width=\\textwidth]{%s}\n'%img
+                # elif ext == 'sage3d' and 'sage3d' in extra_data and 'uuid' in val:
+                #     # render a static image, if available
+                #     v = extra_data['sage3d']
+                #     print "KEYS", v.keys()
+                #     uuid = val['uuid']
+                #     if uuid in v:
+                #         print "TARGET acquired!"
+                #         data = v[uuid].pop()
+                #         width = min(1, 1.2*data.get('width',0.5))
+                #         print "width = ", width
+                #         if 'data-url' in data:
+                #             data_url = data['data-url']  # 'data:image/png;base64,iVBOR...'
+                #             i = data_url.find('/')
+                #             j = data_url.find(";")
+                #             k = data_url.find(',')
+                #             image_ext  = data_url[i+1:j]
+                #             image_data = data_url[k+1:]
+                #             assert data_url[j+1:k] == 'base64'
+                #             filename = str(uuid4()) + "." + image_ext
+                #             open(filename, 'w').write(base64.b64decode(image_data))
+                #             s += '\\includegraphics[width=%s\\textwidth]{%s}\n'%(width, filename)
+                #
+                # else:
+                #     if target.startswith('http'):
+                #         s += '\\url{%s}'%target
+                #     else:
+                #         s += '\\begin{verbatim}['+target+']\\end{verbatim}'
+                #
+        # return s
 
-                base, ext = os.path.splitext(filename)
-                ext = ext.lower()[1:]
-                if ext in ['jpg', 'png', 'eps', 'pdf', 'svg']:
-                    img = ''
-                    i = target.find("/raw/")
-                    if i != -1:
-                        src = os.path.join(os.environ['HOME'], target[i+5:])
-                        if os.path.abspath(src) != os.path.abspath(filename):
-                            try:
-                                shutil.copyfile(src, filename)
-                            except Exception, msg:
-                                print msg
-                        img = filename
-                    else:
-                        # Get the file from remote server
-                        c = 'rm -f "%s"; wget "%s" --output-document="%s"'%(filename, target, filename)
-                        # If we succeeded, convert it to a png, which is what we can easily embed
-                        # in a latex document (svg's don't work...)
-                        self._commands.append(c)
-                        if ext == 'svg':
-                            # hack for svg files; in perfect world someday might do something with vector graphics, see http://tex.stackexchange.com/questions/2099/how-to-include-svg-diagrams-in-latex
-                            # Now we live in a perfect world, and proudly introduce inkscape as a dependency for SMC :-)
-                            #c += ' && rm -f "%s"; convert -antialias -density 150 "%s" "%s"'%(base+'.png',filename,base+'.png')
-                            # converts the svg file into pdf
-                            c += ' && rm -f "%s"; inkscape --without-gui --export-pdf=%s "%s"'%(base+'.pdf',base+'.pdf',filename)
-                            self._commands.append(c)
-                            filename = base+'.pdf'
-                        img = filename
-                    s += '\\includegraphics[width=\\textwidth]{%s}\n'%img
-                elif ext == 'sage3d' and 'sage3d' in extra_data and 'uuid' in val:
-                    # render a static image, if available
-                    v = extra_data['sage3d']
-                    print "KEYS", v.keys()
-                    uuid = val['uuid']
-                    if uuid in v:
-                        print "TARGET acquired!"
-                        data = v[uuid].pop()
-                        width = min(1, 1.2*data.get('width',0.5))
-                        print "width = ", width
-                        if 'data-url' in data:
-                            data_url = data['data-url']  # 'data:image/png;base64,iVBOR...'
-                            i = data_url.find('/')
-                            j = data_url.find(";")
-                            k = data_url.find(',')
-                            image_ext  = data_url[i+1:j]
-                            image_data = data_url[k+1:]
-                            assert data_url[j+1:k] == 'base64'
-                            filename = str(uuid4()) + "." + image_ext
-                            open(filename, 'w').write(base64.b64decode(image_data))
-                            s += '\\includegraphics[width=%s\\textwidth]{%s}\n'%(width, filename)
 
-                else:
-                    if target.startswith('http'):
-                        s += '\\url{%s}'%target
-                    else:
-                        s += '\\begin{verbatim}['+target+']\\end{verbatim}'
-
-        return s
 
 class Worksheet(object):
     def __init__(self, filename=None, s=None):
@@ -359,84 +412,94 @@ class Worksheet(object):
 
     def __len__(self):
         return len(self._cells)
+        
+    def json(self):
+        dlist=[]
+        for C in self._cells:
+            dlist += C.dict_list()
+        d={
+            'nbformat': 4,
+            'nbformat_minor': 0,
+            'cells': dlist
+        }
+        return json.dumps(d)
 
-    def latex_preamble(self, title='',author='', date='', contents=True):
-        title = title.replace('_','\_')
-        author = author.replace('_','\_')
-        # The utf8x instead of utf8 below is because of http://tex.stackexchange.com/questions/83440/inputenc-error-unicode-char-u8-not-set-up-for-use-with-latex, which I needed due to approx symbols, etc. causing trouble.
-        #\usepackage{attachfile}
-        s=r"""
-\documentclass{article}
-\usepackage{fullpage}
-\usepackage{amsmath}
-\usepackage[utf8x]{inputenc}
-\usepackage{amssymb}
-\usepackage{graphicx}
-\usepackage{etoolbox}
-\usepackage{url}
-\usepackage{hyperref}
-\usepackage[T1]{fontenc}
-\makeatletter
-\preto{\@verbatim}{\topsep=0pt \partopsep=0pt }
-\makeatother
-\usepackage{listings}
-\lstdefinelanguage{Sage}[]{Python}
-{morekeywords={True,False,sage,singular},
-sensitive=true}
-\lstset{
-  showtabs=False,
-  showspaces=False,
-  showstringspaces=False,
-  commentstyle={\ttfamily\color{dbrowncolor}},
-  keywordstyle={\ttfamily\color{dbluecolor}\bfseries},
-  stringstyle ={\ttfamily\color{dgraycolor}\bfseries},
-  backgroundcolor=\color{lightyellow},
-  language = Sage,
-  basicstyle={\ttfamily},
-  aboveskip=1em,
-  belowskip=0.1em,
-  breaklines=true,
-  prebreak = \raisebox{0ex}[0ex][0ex]{\ensuremath{\backslash}},
-  %frame=single
-}
-\usepackage{color}
-\definecolor{lightyellow}{rgb}{1,1,.92}
-\definecolor{dblackcolor}{rgb}{0.0,0.0,0.0}
-\definecolor{dbluecolor}{rgb}{.01,.02,0.7}
-\definecolor{dredcolor}{rgb}{1,0,0}
-\definecolor{dbrowncolor}{rgb}{0.625,0.3125,0}
-\definecolor{dgraycolor}{rgb}{0.30,0.3,0.30}
-\definecolor{graycolor}{rgb}{0.35,0.35,0.35}
-"""
-        s += "\\title{%s}\n"%tex_escape(title)
-        s += "\\author{%s}\n"%tex_escape(author)
-        if date:
-            s += "\\date{%s}\n"%tex_escape(date)
-        s += "\\begin{document}\n"
-        s += "\\maketitle\n"
-        #if self._filename:
-        #    s += "The Worksheet: \\attachfile{%s}\n\n"%self._filename
+#     def latex_preamble(self, title='',author='', date='', contents=True):
+#         title = title.replace('_','\_')
+#         author = author.replace('_','\_')
+#         # The utf8x instead of utf8 below is because of http://tex.stackexchange.com/questions/83440/inputenc-error-unicode-char-u8-not-set-up-for-use-with-latex, which I needed due to approx symbols, etc. causing trouble.
+#         #\usepackage{attachfile}
+#         s=r"""
+# \documentclass{article}
+# \usepackage{fullpage}
+# \usepackage{amsmath}
+# \usepackage[utf8x]{inputenc}
+# \usepackage{amssymb}
+# \usepackage{graphicx}
+# \usepackage{etoolbox}
+# \usepackage{url}
+# \usepackage{hyperref}
+# \usepackage[T1]{fontenc}
+# \makeatletter
+# \preto{\@verbatim}{\topsep=0pt \partopsep=0pt }
+# \makeatother
+# \usepackage{listings}
+# \lstdefinelanguage{Sage}[]{Python}
+# {morekeywords={True,False,sage,singular},
+# sensitive=true}
+# \lstset{
+#   showtabs=False,
+#   showspaces=False,
+#   showstringspaces=False,
+#   commentstyle={\ttfamily\color{dbrowncolor}},
+#   keywordstyle={\ttfamily\color{dbluecolor}\bfseries},
+#   stringstyle ={\ttfamily\color{dgraycolor}\bfseries},
+#   backgroundcolor=\color{lightyellow},
+#   language = Sage,
+#   basicstyle={\ttfamily},
+#   aboveskip=1em,
+#   belowskip=0.1em,
+#   breaklines=true,
+#   prebreak = \raisebox{0ex}[0ex][0ex]{\ensuremath{\backslash}},
+#   %frame=single
+# }
+# \usepackage{color}
+# \definecolor{lightyellow}{rgb}{1,1,.92}
+# \definecolor{dblackcolor}{rgb}{0.0,0.0,0.0}
+# \definecolor{dbluecolor}{rgb}{.01,.02,0.7}
+# \definecolor{dredcolor}{rgb}{1,0,0}
+# \definecolor{dbrowncolor}{rgb}{0.625,0.3125,0}
+# \definecolor{dgraycolor}{rgb}{0.30,0.3,0.30}
+# \definecolor{graycolor}{rgb}{0.35,0.35,0.35}
+# """
+#         s += "\\title{%s}\n"%tex_escape(title)
+#         s += "\\author{%s}\n"%tex_escape(author)
+#         if date:
+#             s += "\\date{%s}\n"%tex_escape(date)
+#         s += "\\begin{document}\n"
+#         s += "\\maketitle\n"
+#         #if self._filename:
+#         #    s += "The Worksheet: \\attachfile{%s}\n\n"%self._filename
+#
+#         if contents:
+#             s += "\\tableofcontents\n"
+#         return s
+#
+#     def latex(self, title='', author='', date='', contents=True):
+#         if not title:
+#             title = self._default_title
+#         commands = []
+#         tex = []
+#         for c in self._cells:
+#             t, cmd = c.latex()
+#             tex.append(t)
+#             if cmd:
+#                 commands.extend(cmd)
+#         if commands:
+#             thread_map(os.system, commands)
+#         return self.latex_preamble(title=title, author=author, date=date, contents=contents) + '\n'.join(tex) + r"\end{document}"
 
-        if contents:
-            s += "\\tableofcontents\n"
-        return s
-
-    def latex(self, title='', author='', date='', contents=True):
-        if not title:
-            title = self._default_title
-        commands = []
-        tex = []
-        for c in self._cells:
-            t, cmd = c.latex()
-            tex.append(t)
-            if cmd:
-                commands.extend(cmd)
-        if commands:
-            thread_map(os.system, commands)
-        return self.latex_preamble(title=title, author=author, date=date, contents=contents) + '\n'.join(tex) + r"\end{document}"
-
-
-def sagews_to_pdf(filename, title='', author='', date='', outfile='', contents=True, remove_tmpdir=True):
+def sagews_to_json(filename, title='', author='', date='', outfile='', contents=True, remove_tmpdir=True):
     base = os.path.splitext(filename)[0]
     if not outfile:
         pdf = base + ".pdf"
@@ -444,25 +507,35 @@ def sagews_to_pdf(filename, title='', author='', date='', outfile='', contents=T
         pdf = outfile
     print "converting: %s --> %s"%(filename, pdf)
     W = Worksheet(filename)
-    temp = ''
-    try:
-        temp = tempfile.mkdtemp()
-        if not remove_tmpdir:
-            print "Temporary directory retained: %s" % temp
-        cur = os.path.abspath('.')
-        os.chdir(temp)
-        open('tmp.tex','w').write(W.latex(title=title, author=author, date=date, contents=contents).encode('utf8'))
-        os.system('pdflatex -interact=nonstopmode tmp.tex')
-        if contents:
-            os.system('pdflatex -interact=nonstopmode tmp.tex')
-        if os.path.exists('tmp.pdf'):
-            shutil.move('tmp.pdf',os.path.join(cur, pdf))
-            print "Created", os.path.join(cur, pdf)
-    finally:
-        if temp and remove_tmpdir:
-            shutil.rmtree(temp)
-        else:
-            print "Leaving latex files in '%s'"%temp
+    return W.json()
+
+# def sagews_to_pdf(filename, title='', author='', date='', outfile='', contents=True, remove_tmpdir=True):
+#     base = os.path.splitext(filename)[0]
+#     if not outfile:
+#         pdf = base + ".pdf"
+#     else:
+#         pdf = outfile
+#     print "converting: %s --> %s"%(filename, pdf)
+#     W = Worksheet(filename)
+#     temp = ''
+#     try:
+#         temp = tempfile.mkdtemp()
+#         if not remove_tmpdir:
+#             print "Temporary directory retained: %s" % temp
+#         cur = os.path.abspath('.')
+#         os.chdir(temp)
+#         open('tmp.tex','w').write(W.latex(title=title, author=author, date=date, contents=contents).encode('utf8'))
+#         os.system('pdflatex -interact=nonstopmode tmp.tex')
+#         if contents:
+#             os.system('pdflatex -interact=nonstopmode tmp.tex')
+#         if os.path.exists('tmp.pdf'):
+#             shutil.move('tmp.pdf',os.path.join(cur, pdf))
+#             print "Created", os.path.join(cur, pdf)
+#     finally:
+#         if temp and remove_tmpdir:
+#             shutil.rmtree(temp)
+#         else:
+#             print "Leaving latex files in '%s'"%temp
 
 if __name__ == "__main__":
 
@@ -486,6 +559,6 @@ if __name__ == "__main__":
     else:
         extra_data = {}
 
-    sagews_to_pdf(args.filename, title=args.title.decode('utf8'),
+    print sagews_to_json(args.filename, title=args.title.decode('utf8'),
                   author=args.author.decode('utf8'), outfile=args.outfile,
                   date=args.date, contents=args.contents, remove_tmpdir=args.remove_tmpdir)
