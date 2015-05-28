@@ -8,6 +8,7 @@
 # Mostly a small modification of sagews2pdf.py by William Stein.
 #
 # Original copyright follows:
+#
 # SageMathCloud: A collaborative web-based interface to Sage, IPython, LaTeX and the Terminal.
 #
 #    Copyright (C) 2014, William Stein
@@ -31,8 +32,8 @@
 
 """
 This is a modified sagews2pdf.py so that it outputs an iPython notebook. 
-Original copyright follows.
 
+Original copyright follows.
 
 
 Copyright (c) 2014, William Stein
@@ -256,9 +257,9 @@ class Cell(object):
                 'execution_count': None,
                 'metadata': {
                     'collapsed': False,
-                    'autoscroll': 'auto'
+                    # 'autoscroll': 'auto'
                 },
-                'source': [s],
+                'source': [self.input.strip()],
                 'outputs': []
             }
         if 'i' in self.input_codes:   # hide input
@@ -268,53 +269,72 @@ class Cell(object):
         
 
     def serialize_output(self):
-        d={}
         if 'o' in self.input_codes:  # hide output
-            pass
+            return None
         for x in self.output:
             if 'stdout' in x:
-                d['output_data']='stream'
-                d['name']='stdout'
-                d['text']=[wrap(x['stdout'])]
+                d = {
+                    'output_type': 'stream',
+                    'name': 'stdout',
+                    'text': [wrap(x['stdout'])]
+                }
                 self._json[0]['outputs'].append(d)
             if 'stderr' in x:
-                d['output_data']='stream'
-                d['name']='stderr'
-                d['text']=[wrap(x['stderr'])]
+                d = {
+                    'output_type': 'stream',
+                    'name': 'stderr',
+                    'text': [wrap(x['stderr'])]
+                }
                 self._json[0]['outputs'].append(d)
             if 'code' in x:
                 # TODO: for now ignoring that not all code is Python...
                 # s += "\\begin{lstlisting}" + x['code']['source'] + "\\end{lstlisting}"
                 # Should this be in a cell by itself?
-                d['output_data']='stream'
-                d['name']='stdout'
-                d['text']=[wrap(x['code']['source'])]
+                d = {
+                    'output_type': 'stream',
+                    'name': 'stdout',
+                    'text': [wrap(x['code']['source'])]
+                }
                 self._json[0]['outputs'].append(d)
             if 'html' in x:
                 # s += html2tex(x['html'])
-                d['output_data']='display_data',
-                d['data']={
-                    'text/html': x['html']
+                d = {
+                    'output_type': 'execute_result',
+                    'data': {
+                        'text/html': [x['html']]
+                    },
+                    'metadata': {},
+                    'execution_count': None
                 }
                 self._json[0]['outputs'].append(d)
             if 'md' in x:
                 # s += md2tex(x['md'])
                 d={
                     'cell_type': 'markdown',
-                    'metadata': '',
-                    'source': x['html']
+                    'metadata': {},
+                    'source': x['md']
                 }
-                self._json.append(d)
+                # Overwrite the original cell:
+                self._json=[d]
                 
             if 'interact' in x:
                 pass
             if 'tex' in x:
-                # val = x['tex']
+                val = x['tex']
                 # if 'display' in val:
                 #     s += "$$%s$$"%val['tex']
                 # else:
                 #     s += "$%s$"%val['tex']
-                pass
+                d = {
+                    'output_type': 'execute_result',
+                    'data': {
+                        'application/x-tex': [
+                            "$$%s$$"%val['tex'] if 'display' in val else "%s"%val['tex']
+                        ]
+                    },
+                    'execution_count': None,
+                    'metadata': {}
+                }
             if 'file' in x:                
                 pass
                 # val = x['file']
@@ -420,92 +440,18 @@ class Worksheet(object):
         d={
             'nbformat': 4,
             'nbformat_minor': 0,
-            'cells': dlist
+            'cells': dlist,
+            'metadata': {}
         }
         return json.dumps(d)
-
-#     def latex_preamble(self, title='',author='', date='', contents=True):
-#         title = title.replace('_','\_')
-#         author = author.replace('_','\_')
-#         # The utf8x instead of utf8 below is because of http://tex.stackexchange.com/questions/83440/inputenc-error-unicode-char-u8-not-set-up-for-use-with-latex, which I needed due to approx symbols, etc. causing trouble.
-#         #\usepackage{attachfile}
-#         s=r"""
-# \documentclass{article}
-# \usepackage{fullpage}
-# \usepackage{amsmath}
-# \usepackage[utf8x]{inputenc}
-# \usepackage{amssymb}
-# \usepackage{graphicx}
-# \usepackage{etoolbox}
-# \usepackage{url}
-# \usepackage{hyperref}
-# \usepackage[T1]{fontenc}
-# \makeatletter
-# \preto{\@verbatim}{\topsep=0pt \partopsep=0pt }
-# \makeatother
-# \usepackage{listings}
-# \lstdefinelanguage{Sage}[]{Python}
-# {morekeywords={True,False,sage,singular},
-# sensitive=true}
-# \lstset{
-#   showtabs=False,
-#   showspaces=False,
-#   showstringspaces=False,
-#   commentstyle={\ttfamily\color{dbrowncolor}},
-#   keywordstyle={\ttfamily\color{dbluecolor}\bfseries},
-#   stringstyle ={\ttfamily\color{dgraycolor}\bfseries},
-#   backgroundcolor=\color{lightyellow},
-#   language = Sage,
-#   basicstyle={\ttfamily},
-#   aboveskip=1em,
-#   belowskip=0.1em,
-#   breaklines=true,
-#   prebreak = \raisebox{0ex}[0ex][0ex]{\ensuremath{\backslash}},
-#   %frame=single
-# }
-# \usepackage{color}
-# \definecolor{lightyellow}{rgb}{1,1,.92}
-# \definecolor{dblackcolor}{rgb}{0.0,0.0,0.0}
-# \definecolor{dbluecolor}{rgb}{.01,.02,0.7}
-# \definecolor{dredcolor}{rgb}{1,0,0}
-# \definecolor{dbrowncolor}{rgb}{0.625,0.3125,0}
-# \definecolor{dgraycolor}{rgb}{0.30,0.3,0.30}
-# \definecolor{graycolor}{rgb}{0.35,0.35,0.35}
-# """
-#         s += "\\title{%s}\n"%tex_escape(title)
-#         s += "\\author{%s}\n"%tex_escape(author)
-#         if date:
-#             s += "\\date{%s}\n"%tex_escape(date)
-#         s += "\\begin{document}\n"
-#         s += "\\maketitle\n"
-#         #if self._filename:
-#         #    s += "The Worksheet: \\attachfile{%s}\n\n"%self._filename
-#
-#         if contents:
-#             s += "\\tableofcontents\n"
-#         return s
-#
-#     def latex(self, title='', author='', date='', contents=True):
-#         if not title:
-#             title = self._default_title
-#         commands = []
-#         tex = []
-#         for c in self._cells:
-#             t, cmd = c.latex()
-#             tex.append(t)
-#             if cmd:
-#                 commands.extend(cmd)
-#         if commands:
-#             thread_map(os.system, commands)
-#         return self.latex_preamble(title=title, author=author, date=date, contents=contents) + '\n'.join(tex) + r"\end{document}"
 
 def sagews_to_json(filename, title='', author='', date='', outfile='', contents=True, remove_tmpdir=True):
     base = os.path.splitext(filename)[0]
     if not outfile:
-        pdf = base + ".pdf"
+        pdf = base + ".ipynb"
     else:
         pdf = outfile
-    print "converting: %s --> %s"%(filename, pdf)
+    # print "converting: %s --> %s"%(filename, pdf)
     W = Worksheet(filename)
     return W.json()
 
