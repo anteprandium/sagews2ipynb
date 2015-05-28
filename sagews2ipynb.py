@@ -5,7 +5,7 @@
 # This is useful because iPython notebooks are the only format
 # that works both for pushing/pulling files from sagemathcloud.
 #
-# Mostly a small modification of sagews2pdf.py by William Stein.
+# Mostly a fork of sagews2pdf.py by William Stein.
 #
 # Original copyright follows:
 #
@@ -84,127 +84,7 @@ def escape_path(s):
 def wrap(s, c=90):
     return '\n'.join(['\n'.join(textwrap.wrap(x, c)) for x in s.splitlines()])
 
-def tex_escape(s):
-    return s.replace( "\\","{\\textbackslash}" ).replace( "_","\\_" ).replace( "{\\textbackslash}$","\\$" ).replace('%','\\%').replace('#','\\#').replace("&","\\&")
-
-
-# Parallel computing can be useful for IO bound tasks.
-def thread_map(callable, inputs):
-    """
-    Computing [callable(args) for args in inputs]
-    in parallel using len(inputs) separate *threads*.
-
-    If an exception is raised by any thread, a RuntimeError exception
-    is instead raised.
-    """
-    print "Doing the following in parallel:\n%s"%('\n'.join(inputs))
-    from threading import Thread
-    class F(Thread):
-        def __init__(self, x):
-            self._x = x
-            Thread.__init__(self)
-            self.start()
-        def run(self):
-            try:
-                self.result = callable(self._x)
-                self.fail = False
-            except Exception, msg:
-                self.result = msg
-                self.fail = True
-    results = [F(x) for x in inputs]
-    for f in results: f.join()
-    e = [f.result for f in results if f.fail]
-    if e: raise RuntimeError(e)
-    return [f.result for f in results]
-
-
-# create a subclass and override the handler methods
-
-class Parser(HTMLParser.HTMLParser):
-    def handle_starttag(self, tag, attrs):
-        if tag == 'h1':
-            self.result += '\\section{'
-        elif tag == 'h2':
-            self.result += '\\subsection{'
-        elif tag == 'h3':
-            self.result += '\\subsubsection{'
-        elif tag == 'i':
-            self.result += '\\textemph{'
-        elif tag == 'div':
-            self.result += '\n\n{'
-        elif tag == 'ul':
-            self.result += '\\begin{itemize}'
-        elif tag == 'ol':
-            self.result += '\\begin{enumerate}'
-        elif tag == 'hr':
-            self.result += '\n\n' + '-'*80 + '\n\n'  #TODO
-        elif tag == 'li':
-            self.result += '\\item{'
-        elif tag == 'a':
-            self.result += '\\url{'
-        else:
-            self.result += '{'  # fallback
-
-    def handle_endtag(self, tag):
-        if tag == 'ul':
-            self.result += '\\end{itemize}'
-        elif tag == 'ol':
-            self.result += '\\end{enumerate}'
-        elif tag == 'hr':
-            self.result += ''
-        else:
-            self.result += '}'  # fallback
-
-    def handle_data(self, data):
-        # safe because all math stuff has already been escaped.
-        self.result += tex_escape(data)
-
-def sanitize_math_input(s):
-    from markdown2Mathjax import sanitizeInput
-    # it's critical that $$ be first!
-    delims = [('$$','$$'), ('\\(','\\)'), ('\\[','\\]'),
-              ('\\begin{equation}', '\\end{equation}'), ('\\begin{equation*}', '\\end{equation*}'),
-              ('\\begin{align}', '\\end{align}'), ('\\begin{align*}', '\\end{align*}'),
-              ('\\begin{eqnarray}', '\\end{eqnarray}'), ('\\begin{eqnarray*}', '\\end{eqnarray*}'),
-              ('\\begin{math}', '\\end{math}'),
-              ('\\begin{displaymath}', '\\end{displaymath}')
-              ]
-
-    tmp = [((s,None),None)]
-    for d in delims:
-        tmp.append((sanitizeInput(tmp[-1][0][0], equation_delims=d), d))
-
-    return tmp
-
-def reconstruct_math(s, tmp):
-    from markdown2Mathjax import reconstructMath
-    while len(tmp) > 1:
-        s = reconstructMath(s, tmp[-1][0][1], equation_delims=tmp[-1][1])
-        del tmp[-1]
-    return s
-
-def html2tex(doc):
-    tmp = sanitize_math_input(doc)
-    parser = Parser()
-    parser.result = ''
-    # The number of (unescaped) dollars or double-dollars found so far. An even
-    # number is assumed to indicate that we're outside of math and thus need to
-    # escape.
-    parser.dollars_found = 0
-    parser.feed(tmp[-1][0][0])
-    return reconstruct_math(parser.result, tmp)
-
-
-def md2html(s):
-    from markdown2 import markdown
-    extras = ['code-friendly', 'footnotes', 'smarty-pants', 'wiki-tables', 'fenced-code-blocks']
-
-    tmp = sanitize_math_input(s)
-    markedDownText = markdown(tmp[-1][0][0], extras=extras)
-    return reconstruct_math(markedDownText, tmp)
-
-def md2tex(doc):
-    return html2tex(md2html(doc))
+## Removed lots of code here.
 
 class Cell(object):
     def __init__(self, s):
@@ -436,8 +316,14 @@ class Worksheet(object):
                 'filename': filename,
                 'title': title,
                 'author': author,
-                'date': date
+                'date': date,
+                "kernelspec": {
+                 "display_name": "Sage 6.6",
+                 "language": "",
+                 "name": "sage_6_6"
+                },
             },
+            
         }
         return json.dumps(d, indent=4)
 
