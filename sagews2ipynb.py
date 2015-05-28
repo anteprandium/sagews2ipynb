@@ -120,18 +120,17 @@ class Cell(object):
 
     def dict_list(self):
         """
-        Returns a list(dict) representation of this cell, along with a list of commands
-        that should be executed in the shell in order to obtain remote data files,
-        etc., to render this cell.
+        Return a dict representation of this cell for later
+        json serialization
         """
-        self._commands = []
-        self._json=[]
-        self.serialize_input()
-        self.serialize_output()
-        return self._json
+        # self._commands = []
+        self._jdict=[]
+        self.do_cell_input()
+        self.do_cell_output()
+        return self._jdict
         # append(self.latex_output()), self._commands
 
-    def serialize_input(self):
+    def do_cell_input(self):
         """Return a dict representation of self."""
         d = {
                 'cell_type': 'code',
@@ -147,12 +146,12 @@ class Cell(object):
         if 'i' in self.input_codes:   # hide input
             # d['metadata']['collapsed'] = True
             # if it's hidden, skip it.
-            return {}
+            return 
             
-        self._json.append(d)
+        self._jdict.append(d)
         
 
-    def serialize_output(self):
+    def do_cell_output(self):
         if 'o' in self.input_codes:  # hide output
             return None
         for x in self.output:
@@ -162,7 +161,7 @@ class Cell(object):
                     'name': 'stdout',
                     'text': [wrap(x['stdout'])]
                 }
-                self._json[0]['outputs'].append(d)
+                self._jdict[0]['outputs'].append(d)
                 
             if 'stderr' in x:
                 d = {
@@ -170,7 +169,7 @@ class Cell(object):
                     'name': 'stderr',
                     'text': [wrap(x['stderr'])]
                 }
-                self._json[0]['outputs'].append(d)
+                self._jdict[0]['outputs'].append(d)
                 
             if 'code' in x:
                 # TODO: for now ignoring that not all code is Python...
@@ -181,7 +180,7 @@ class Cell(object):
                     'name': 'stdout',
                     'text': [wrap(x['code']['source'])]
                 }
-                self._json[0]['outputs'].append(d)
+                self._jdict[0]['outputs'].append(d)
                 
             if 'html' in x:
                 # s += html2tex(x['html'])
@@ -193,7 +192,7 @@ class Cell(object):
                     'metadata': {},
                     'execution_count': None
                 }
-                self._json[0]['outputs'].append(d)
+                self._jdict[0]['outputs'].append(d)
                 
             if 'md' in x:
                 # s += md2tex(x['md'])
@@ -203,7 +202,7 @@ class Cell(object):
                     'source': x['md']
                 }
                 # Overwrite the original cell:
-                self._json=[d]
+                self._jdict=[d]
                 
             if 'interact' in x:
                 pass
@@ -223,7 +222,7 @@ class Cell(object):
                     'execution_count': None,
                     'metadata': {}
                 }
-                self._json[0]['outputs'].append(d)
+                self._jdict[0]['outputs'].append(d)
                 
             if 'file' in x:                
                 val = x['file']
@@ -254,7 +253,7 @@ class Cell(object):
                         }
                     }
                     # print "holita"
-                    self._json[0]['outputs'].append(d)
+                    self._jdict[0]['outputs'].append(d)
                 elif ext in ['jpg', 'png', 'eps', 'pdf']:
                     d = {
                         'output_type': 'execute_result',
@@ -264,7 +263,7 @@ class Cell(object):
                             'image/'+ext: [base64.b64encode(file_content.getvalue())]
                         }
                     }
-                    self._json[0]['outputs'].append(d)
+                    self._jdict[0]['outputs'].append(d)
                 else:
                     print "Skipping (%s: %s)"%(filename, target)
                 # else:
@@ -327,7 +326,7 @@ class Worksheet(object):
         }
         return json.dumps(d, indent=4)
 
-def sagews_to_json(filename, title='', author='', date='', outfile='', contents=True, remove_tmpdir=True):
+def sagews_to_jdict(filename, title='', author='', date='', outfile='', contents=True, remove_tmpdir=True):
     base = os.path.splitext(filename)[0]
     if not outfile:
         nb = base + ".ipynb"
@@ -389,6 +388,6 @@ if __name__ == "__main__":
     else:
         extra_data = {}
 
-    sagews_to_json(args.filename, title=args.title.decode('utf8'),
+    sagews_to_jdict(args.filename, title=args.title.decode('utf8'),
                   author=args.author.decode('utf8'), outfile=args.outfile,
                   date=args.date, contents=args.contents, remove_tmpdir=args.remove_tmpdir)
