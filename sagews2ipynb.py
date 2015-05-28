@@ -123,28 +123,21 @@ class Cell(object):
         Return a dict representation of this cell for later
         json serialization
         """
-        # self._commands = []
         self._jdict=[]
         self.do_cell_input()
         self.do_cell_output()
         return self._jdict
-        # append(self.latex_output()), self._commands
 
     def do_cell_input(self):
         """Return a dict representation of self."""
         d = {
                 'cell_type': 'code',
                 'execution_count': None,
-                # 'metadata': {
-                #     'collapsed': False,
-                #     # 'autoscroll': 'auto'
-                # },
                 'metadata': {},
                 'source': [self.input.strip()],
                 'outputs': []
             }
-        if 'i' in self.input_codes:   # hide input
-            # d['metadata']['collapsed'] = True
+        if 'i' in self.input_codes:   # hidden input
             # if it's hidden, skip it.
             return 
             
@@ -173,7 +166,6 @@ class Cell(object):
                 
             if 'code' in x:
                 # TODO: for now ignoring that not all code is Python...
-                # s += "\\begin{lstlisting}" + x['code']['source'] + "\\end{lstlisting}"
                 # Should this be in a cell by itself?
                 d = {
                     'output_type': 'stream',
@@ -183,7 +175,6 @@ class Cell(object):
                 self._jdict[0]['outputs'].append(d)
                 
             if 'html' in x:
-                # s += html2tex(x['html'])
                 d = {
                     'output_type': 'execute_result',
                     'data': {
@@ -195,7 +186,6 @@ class Cell(object):
                 self._jdict[0]['outputs'].append(d)
                 
             if 'md' in x:
-                # s += md2tex(x['md'])
                 d={
                     'cell_type': 'markdown',
                     'metadata': {},
@@ -209,10 +199,6 @@ class Cell(object):
                 
             if 'tex' in x:
                 val = x['tex']
-                # if 'display' in val:
-                #     s += "$$%s$$"%val['tex']
-                # else:
-                #     s += "$%s$"%val['tex']
                 s="$$%s$$"%val['tex'] if 'display' in val else "$%s$"%val['tex']
                 d = {
                     'output_type': 'execute_result',
@@ -252,7 +238,6 @@ class Cell(object):
                             'text/plain': ["<SVG Object>\n"]
                         }
                     }
-                    # print "holita"
                     self._jdict[0]['outputs'].append(d)
                 elif ext in ['jpg', 'png', 'eps', 'pdf']:
                     d = {
@@ -337,34 +322,6 @@ def sagews_to_jdict(filename, title='', author='', date='', outfile='', contents
     s=W.json(filename, title, author, date)
     open(nb,'w').write(s.encode('utf8'))
     
-
-# def sagews_to_pdf(filename, title='', author='', date='', outfile='', contents=True, remove_tmpdir=True):
-#     base = os.path.splitext(filename)[0]
-#     if not outfile:
-#         pdf = base + ".pdf"
-#     else:
-#         pdf = outfile
-#     print "converting: %s --> %s"%(filename, pdf)
-#     W = Worksheet(filename)
-#     temp = ''
-#     try:
-#         temp = tempfile.mkdtemp()
-#         if not remove_tmpdir:
-#             print "Temporary directory retained: %s" % temp
-#         cur = os.path.abspath('.')
-#         os.chdir(temp)
-#         open('tmp.tex','w').write(W.latex(title=title, author=author, date=date, contents=contents).encode('utf8'))
-#         os.system('pdflatex -interact=nonstopmode tmp.tex')
-#         if contents:
-#             os.system('pdflatex -interact=nonstopmode tmp.tex')
-#         if os.path.exists('tmp.pdf'):
-#             shutil.move('tmp.pdf',os.path.join(cur, pdf))
-#             print "Created", os.path.join(cur, pdf)
-#     finally:
-#         if temp and remove_tmpdir:
-#             shutil.rmtree(temp)
-#         else:
-#             print "Leaving latex files in '%s'"%temp
 
 if __name__ == "__main__":
 
