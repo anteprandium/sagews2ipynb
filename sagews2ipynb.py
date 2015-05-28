@@ -84,9 +84,6 @@ def escape_path(s):
 def wrap(s, c=90):
     return '\n'.join(['\n'.join(textwrap.wrap(x, c)) for x in s.splitlines()])
 
-def tex_escape(s):
-    return s.replace( "\\","{\\textbackslash}" ).replace( "_","\\_" ).replace( "{\\textbackslash}$","\\$" ).replace('%','\\%').replace('#','\\#').replace("&","\\&")
-
 ## Removed lots of code here.
 
 class Cell(object):
