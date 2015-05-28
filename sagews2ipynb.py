@@ -263,7 +263,9 @@ class Cell(object):
                 'outputs': []
             }
         if 'i' in self.input_codes:   # hide input
-            d['metadata']['collapsed'] = True
+            # d['metadata']['collapsed'] = True
+            # skip
+            return {}
             
         self._json.append(d)
         
@@ -325,28 +327,29 @@ class Cell(object):
                 #     s += "$$%s$$"%val['tex']
                 # else:
                 #     s += "$%s$"%val['tex']
+                s="$$%s$$"%val['tex'] if 'display' in val else "$%s$"%val['tex']
                 d = {
                     'output_type': 'execute_result',
                     'data': {
-                        'application/x-tex': [
-                            "$$%s$$"%val['tex'] if 'display' in val else "%s"%val['tex']
-                        ]
+                        'text/latex': [s]
                     },
                     'execution_count': None,
                     'metadata': {}
                 }
             if 'file' in x:                
                 pass
-                # val = x['file']
-                # if 'url' in val:
-                #     target = val['url']
-                #     filename = os.path.split(target)[-1]
-                # else:
-                #     filename = os.path.split(val['filename'])[-1]
-                #     target = "%s/blobs/%s?uuid=%s"%(site, escape_path(filename), val['uuid'])
-                #
-                # base, ext = os.path.splitext(filename)
-                # ext = ext.lower()[1:]
+                val = x['file']
+                if 'url' in val:
+                    target = val['url']
+                    filename = os.path.split(target)[-1]
+                else:
+                    filename = os.path.split(val['filename'])[-1]
+                    target = "%s/blobs/%s?uuid=%s"%(site, escape_path(filename), val['uuid'])
+                
+                print (target, filename)
+
+                base, ext = os.path.splitext(filename)
+                ext = ext.lower()[1:]
                 # if ext in ['jpg', 'png', 'eps', 'pdf', 'svg']:
                 #     img = ''
                 #     i = target.find("/raw/")
@@ -433,7 +436,7 @@ class Worksheet(object):
     def __len__(self):
         return len(self._cells)
         
-    def json(self):
+    def json(self, filename, title, author, date):
         dlist=[]
         for C in self._cells:
             dlist += C.dict_list()
@@ -441,19 +444,26 @@ class Worksheet(object):
             'nbformat': 4,
             'nbformat_minor': 0,
             'cells': dlist,
-            'metadata': {}
+            'metadata': {
+                'filename': filename,
+                'title': title,
+                'author': author,
+                'date': date
+            },
         }
         return json.dumps(d)
 
 def sagews_to_json(filename, title='', author='', date='', outfile='', contents=True, remove_tmpdir=True):
     base = os.path.splitext(filename)[0]
     if not outfile:
-        pdf = base + ".ipynb"
+        nb = base + ".ipynb"
     else:
-        pdf = outfile
-    # print "converting: %s --> %s"%(filename, pdf)
+        nb = outfile
+    print "converting: %s --> %s"%(filename, nb)
     W = Worksheet(filename)
-    return W.json()
+    s=W.json(filename, title, author, date)
+    open(nb,'w').write(s.encode('utf8'))
+    
 
 # def sagews_to_pdf(filename, title='', author='', date='', outfile='', contents=True, remove_tmpdir=True):
 #     base = os.path.splitext(filename)[0]
@@ -505,6 +515,6 @@ if __name__ == "__main__":
     else:
         extra_data = {}
 
-    print sagews_to_json(args.filename, title=args.title.decode('utf8'),
+    sagews_to_json(args.filename, title=args.title.decode('utf8'),
                   author=args.author.decode('utf8'), outfile=args.outfile,
                   date=args.date, contents=args.contents, remove_tmpdir=args.remove_tmpdir)
