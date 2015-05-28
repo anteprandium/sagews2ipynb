@@ -5,7 +5,7 @@
 # This is useful because iPython notebooks are the only format
 # that works both for pushing/pulling files from sagemathcloud.
 #
-# Mostly a small modification of sagews2pdf.py by William Stein.
+# Mostly a fork of sagews2pdf.py by William Stein.
 #
 # Original copyright follows:
 #
@@ -316,8 +316,14 @@ class Worksheet(object):
                 'filename': filename,
                 'title': title,
                 'author': author,
-                'date': date
+                'date': date,
+                "kernelspec": {
+                 "display_name": "Sage 6.6",
+                 "language": "",
+                 "name": "sage_6_6"
+                },
             },
+            
         }
         return json.dumps(d, indent=4)
 
