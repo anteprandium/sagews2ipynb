@@ -74,6 +74,7 @@ site = 'https://cloud.sagemath.com'
 
 import argparse, base64, cPickle, json, os, shutil, sys, textwrap, HTMLParser, tempfile, urllib
 from uuid import uuid4
+import StringIO
 
 def escape_path(s):
     # see http://stackoverflow.com/questions/946170/equivalent-javascript-functions-for-pythons-urllib-quote-and-urllib-unquote
@@ -255,16 +256,17 @@ class Cell(object):
         d = {
                 'cell_type': 'code',
                 'execution_count': None,
-                'metadata': {
-                    'collapsed': False,
-                    # 'autoscroll': 'auto'
-                },
+                # 'metadata': {
+                #     'collapsed': False,
+                #     # 'autoscroll': 'auto'
+                # },
+                'metadata': {},
                 'source': [self.input.strip()],
                 'outputs': []
             }
         if 'i' in self.input_codes:   # hide input
             # d['metadata']['collapsed'] = True
-            # skip
+            # if it's hidden, skip it.
             return {}
             
         self._json.append(d)
@@ -281,6 +283,7 @@ class Cell(object):
                     'text': [wrap(x['stdout'])]
                 }
                 self._json[0]['outputs'].append(d)
+                
             if 'stderr' in x:
                 d = {
                     'output_type': 'stream',
@@ -288,6 +291,7 @@ class Cell(object):
                     'text': [wrap(x['stderr'])]
                 }
                 self._json[0]['outputs'].append(d)
+                
             if 'code' in x:
                 # TODO: for now ignoring that not all code is Python...
                 # s += "\\begin{lstlisting}" + x['code']['source'] + "\\end{lstlisting}"
@@ -298,6 +302,7 @@ class Cell(object):
                     'text': [wrap(x['code']['source'])]
                 }
                 self._json[0]['outputs'].append(d)
+                
             if 'html' in x:
                 # s += html2tex(x['html'])
                 d = {
@@ -309,6 +314,7 @@ class Cell(object):
                     'execution_count': None
                 }
                 self._json[0]['outputs'].append(d)
+                
             if 'md' in x:
                 # s += md2tex(x['md'])
                 d={
@@ -321,6 +327,7 @@ class Cell(object):
                 
             if 'interact' in x:
                 pass
+                
             if 'tex' in x:
                 val = x['tex']
                 # if 'display' in val:
@@ -336,69 +343,50 @@ class Cell(object):
                     'execution_count': None,
                     'metadata': {}
                 }
+                self._json[0]['outputs'].append(d)
+                
             if 'file' in x:                
-                pass
                 val = x['file']
+                #
                 if 'url' in val:
                     target = val['url']
                     filename = os.path.split(target)[-1]
                 else:
                     filename = os.path.split(val['filename'])[-1]
                     target = "%s/blobs/%s?uuid=%s"%(site, escape_path(filename), val['uuid'])
-                
-                print (target, filename)
-
+                    
+                try:
+                    file_content=StringIO.StringIO(urllib.urlopen(target).read())
+                except:
+                    print "Could not read %s, skipping."%target
+                    return
+                    
                 base, ext = os.path.splitext(filename)
                 ext = ext.lower()[1:]
-                # if ext in ['jpg', 'png', 'eps', 'pdf', 'svg']:
-                #     img = ''
-                #     i = target.find("/raw/")
-                #     if i != -1:
-                #         src = os.path.join(os.environ['HOME'], target[i+5:])
-                #         if os.path.abspath(src) != os.path.abspath(filename):
-                #             try:
-                #                 shutil.copyfile(src, filename)
-                #             except Exception, msg:
-                #                 print msg
-                #         img = filename
-                #     else:
-                #         # Get the file from remote server
-                #         c = 'rm -f "%s"; wget "%s" --output-document="%s"'%(filename, target, filename)
-                #         # If we succeeded, convert it to a png, which is what we can easily embed
-                #         # in a latex document (svg's don't work...)
-                #         self._commands.append(c)
-                #         if ext == 'svg':
-                #             # hack for svg files; in perfect world someday might do something with vector graphics, see http://tex.stackexchange.com/questions/2099/how-to-include-svg-diagrams-in-latex
-                #             # Now we live in a perfect world, and proudly introduce inkscape as a dependency for SMC :-)
-                #             #c += ' && rm -f "%s"; convert -antialias -density 150 "%s" "%s"'%(base+'.png',filename,base+'.png')
-                #             # converts the svg file into pdf
-                #             c += ' && rm -f "%s"; inkscape --without-gui --export-pdf=%s "%s"'%(base+'.pdf',base+'.pdf',filename)
-                #             self._commands.append(c)
-                #             filename = base+'.pdf'
-                #         img = filename
-                #     s += '\\includegraphics[width=\\textwidth]{%s}\n'%img
-                # elif ext == 'sage3d' and 'sage3d' in extra_data and 'uuid' in val:
-                #     # render a static image, if available
-                #     v = extra_data['sage3d']
-                #     print "KEYS", v.keys()
-                #     uuid = val['uuid']
-                #     if uuid in v:
-                #         print "TARGET acquired!"
-                #         data = v[uuid].pop()
-                #         width = min(1, 1.2*data.get('width',0.5))
-                #         print "width = ", width
-                #         if 'data-url' in data:
-                #             data_url = data['data-url']  # 'data:image/png;base64,iVBOR...'
-                #             i = data_url.find('/')
-                #             j = data_url.find(";")
-                #             k = data_url.find(',')
-                #             image_ext  = data_url[i+1:j]
-                #             image_data = data_url[k+1:]
-                #             assert data_url[j+1:k] == 'base64'
-                #             filename = str(uuid4()) + "." + image_ext
-                #             open(filename, 'w').write(base64.b64decode(image_data))
-                #             s += '\\includegraphics[width=%s\\textwidth]{%s}\n'%(width, filename)
-                #
+                if ext in ['svg']:
+                    d = {
+                        'output_type': 'execute_result',
+                        'execution_count': None,
+                        'metadata': {},
+                        'data': {
+                            "image/svg+xml": [file_content.getvalue()],
+                            'text/plain': ["<SVG Object>\n"]
+                        }
+                    }
+                    # print "holita"
+                    self._json[0]['outputs'].append(d)
+                elif ext in ['jpg', 'png', 'eps', 'pdf']:
+                    d = {
+                        'output_type': 'execute_result',
+                        'execution_count': None,
+                        'metadata': {},
+                        'data': {
+                            'image/'+ext: [base64.b64encode(file_content.getvalue())]
+                        }
+                    }
+                    self._json[0]['outputs'].append(d)
+                else:
+                    print "Skipping (%s: %s)"%(filename, target)
                 # else:
                 #     if target.startswith('http'):
                 #         s += '\\url{%s}'%target
@@ -451,7 +439,7 @@ class Worksheet(object):
                 'date': date
             },
         }
-        return json.dumps(d)
+        return json.dumps(d, indent=4)
 
 def sagews_to_json(filename, title='', author='', date='', outfile='', contents=True, remove_tmpdir=True):
     base = os.path.splitext(filename)[0]
