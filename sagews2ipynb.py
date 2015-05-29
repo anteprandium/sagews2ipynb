@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# encoding: utf-8
+# encoding: ascii
 ###############################################################################
 # sagews2ipynb Convert a SageMathCloud worksheet into an iPython notebook.
 # This is useful because iPython notebooks are the only format
@@ -74,14 +74,50 @@ site = 'https://cloud.sagemath.com'
 # TODO: this too needs customizing.
 kernelspec={
     "display_name": "Sage 6.6",
-    "language": "",
+    "language": "python",
     "name": "sage_6_6"
 }
+# metadata= {
+#   "kernelspec": {
+#    "display_name": "Python 2",
+#    "language": "python",
+#    "name": "python2"
+#   },
+#   "language_info": {
+#    "codemirror_mode": {
+#     "name": "ipython",
+#     "version": 2
+#    },
+#    "file_extension": ".py",
+#    "mimetype": "text/x-python",
+#    "name": "python",
+#    "nbconvert_exporter": "python",
+#    "pygments_lexer": "ipython2",
+#    "version": "2.7.8"
+#   }
+#  }
 
 DEBUG=False
 def dprint(s):
     if DEBUG:
         print s
+
+xxcount=0
+def xcount():
+    """docstring for xcount"""
+    global xxcount
+    return xxcount
+def next_xcount():
+    """docstring for next_xcount"""
+    global xxcount
+    xxcount+=1
+    return xxcount
+def prev_xcount():
+    """docstring for next_xcount"""
+    global xxcount
+    xxcount-=1
+    return xxcount
+
 
 
 import argparse, base64, cPickle, json, os, shutil, sys, textwrap, HTMLParser, tempfile, urllib
@@ -121,6 +157,7 @@ class Cell(object):
             self.output_uuid = w[0] if len(w) > 0 else ''
             self.output = []
             for x in w[1:]:
+                # x=x.strip()
                 if x:
                     try:
                         self.output.append(json.loads(x))
@@ -147,8 +184,8 @@ class Cell(object):
         """Return a dict representation of self."""
         d = {
                 'cell_type': 'code',
-                'execution_count': None,
-                'metadata': {},
+                'execution_count': next_xcount(),
+                'metadata': {'collapsed': False},
                 'source': outsplit(self.input.strip()),
                 'outputs': []
             }
@@ -162,6 +199,7 @@ class Cell(object):
 
 
     def do_cell_output(self):
+        
         if 'o' in self.input_codes:  # hide output
             dprint("Ignoring output of cell "+self.input_uuid)
             return # nothing to see here, move on
@@ -169,9 +207,12 @@ class Cell(object):
         for x in self.output:
             if 'stdout' in x:
                 d = {
-                    'output_type': 'stream',
-                    'name': 'stdout',
-                    'text': outsplit(wrap(x['stdout']))
+                    'output_type': 'execute_result',
+                    'metadata': {},
+                    'execution_count': xcount(),
+                    'data': {
+                        'text/plain': outsplit(wrap(x['stdout']))
+                    }
                 }
                 self._jdict[0]['outputs'].append(d)
                 dprint("Stdout output")
@@ -191,9 +232,12 @@ class Cell(object):
                 # TODO: for now ignoring that not all code is Python...
                 # Should this be in a cell by itself?
                 d = {
-                    'output_type': 'stream',
-                    'name': 'stdout',
-                    'text': outsplit(wrap(x['code']['source']))
+                    'output_type': 'execute_result',
+                    'metadata': {},
+                    'execution_count': xcount(),
+                    'data': {
+                        'text/plain': outsplit(wrap(x['code']['source']))
+                    }
                 }
                 self._jdict[0]['outputs'].append(d)
                 dprint("Code output")
@@ -206,7 +250,7 @@ class Cell(object):
                         'text/html': [x['html']]
                     },
                     'metadata': {},
-                    'execution_count': None
+                    'execution_count': xcount()
                 }
                 self._jdict[0]['outputs'].append(d)
                 dprint("HTML output")
@@ -219,6 +263,7 @@ class Cell(object):
                     'source': x['md']
                 }
                 # Overwrite the original cell and move on
+                prev_xcount()
                 self._jdict=[d]
                 dprint("Markdown output, overwriting original cell and moving on")
                 return
@@ -235,7 +280,7 @@ class Cell(object):
                     'data': {
                         'text/latex': [s]
                     },
-                    'execution_count': None,
+                    'execution_count': xcount(),
                     'metadata': {}
                 }
                 self._jdict[0]['outputs'].append(d)
@@ -267,11 +312,11 @@ class Cell(object):
                     p=s.lower().index("<svg")
                     d = {
                         'output_type': 'execute_result',
-                        'execution_count': None,
+                        'execution_count': xcount(),
                         'metadata': {},
                         'data': {
-                            "image/svg+xml": outsplit(s),
-                            'text/plain': ["<IPython.core.display.SVG Object>"],
+                            'image/svg+xml': outsplit(s[p:]),
+                            'text/plain': ["<IPython.core.display.SVG object>"],
                             # 'text/html': outsplit(s[p:])
                         }
                     }
@@ -282,7 +327,7 @@ class Cell(object):
                     dprint("..."+ext)
                     d = {
                         'output_type': 'execute_result',
-                        'execution_count': None,
+                        'execution_count': xcount(),
                         'metadata': {},
                         'data': {
                             'image/'+ext: [base64.b64encode(file_content.getvalue())]
@@ -295,7 +340,7 @@ class Cell(object):
                     dprint("Fallback to link")
                     d = {
                         'output_type': 'execute_result',
-                        'execution_count': None,
+                        'execution_count': xcount(),
                         'metadata': {},
                         'data': {
                             'text/html': ['<a href="%s">%s</a>'%(target,target)]
@@ -308,8 +353,8 @@ class Cell(object):
                 dprint("Fallback to plain text")
                 d = {
                     'output_type': 'execute_result',
-                    'execution_count': None,
-                    'metadata': {},
+                    'execution_count': xcount(),
+                    'metadata': {'collapsed': False},
                     'data': {
                         'text/plain': [str(x)]
                     }
@@ -356,13 +401,8 @@ class Worksheet(object):
             'nbformat_minor': 0,
             'cells': dlist,
             'metadata': {
-                'filename': filename,
-                'title': title,
-                'author': author,
-                'date': date,
-                "kernelspec": kernelspec
-            },
-
+                'kernelspec': kernelspec
+            }
         }
         return json.dumps(d, indent=4)
 
