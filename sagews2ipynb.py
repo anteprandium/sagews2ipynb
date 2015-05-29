@@ -149,7 +149,7 @@ class Cell(object):
                 'cell_type': 'code',
                 'execution_count': None,
                 'metadata': {},
-                'source': [self.input.strip()],
+                'source': outsplit(self.input.strip()),
                 'outputs': []
             }
         if 'i' in self.input_codes:   # hidden input
@@ -171,7 +171,7 @@ class Cell(object):
                 d = {
                     'output_type': 'stream',
                     'name': 'stdout',
-                    'text': [wrap(x['stdout'])]
+                    'text': outsplit(wrap(x['stdout']))
                 }
                 self._jdict[0]['outputs'].append(d)
                 dprint("Stdout output")
@@ -181,7 +181,7 @@ class Cell(object):
                 d = {
                     'output_type': 'stream',
                     'name': 'stderr',
-                    'text': [wrap(x['stderr'])]
+                    'text': outsplit(wrap(x['stderr']))
                 }
                 self._jdict[0]['outputs'].append(d)
                 dprint("Stderr output")
@@ -193,7 +193,7 @@ class Cell(object):
                 d = {
                     'output_type': 'stream',
                     'name': 'stdout',
-                    'text': [wrap(x['code']['source'])]
+                    'text': outsplit(wrap(x['code']['source']))
                 }
                 self._jdict[0]['outputs'].append(d)
                 dprint("Code output")
