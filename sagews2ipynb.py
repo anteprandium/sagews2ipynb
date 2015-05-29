@@ -133,7 +133,11 @@ def wrap(s, c=90):
     return '\n'.join(['\n'.join(textwrap.wrap(x, c)) for x in s.splitlines()])
     
 def outsplit(s):
-    return [t+'\n' for t in s.splitlines()]
+    ss=s.splitlines()
+    if len(ss)>1:
+        return [t+'\n' for t in ss[:-1]]+ss[-1:]
+    else: 
+        return ss
     
 ## Removed lots of code here.
 
@@ -308,16 +312,17 @@ class Cell(object):
                 ext = ext.lower()[1:]
                 if ext in ['svg']:
                     dprint("... SVG")
-                    s=file_content.getvalue()
-                    p=s.lower().index("<svg")
+                    o=file_content.getvalue()
+                    s=o.lower()
+                    p=s.index("<svg")
+                    q=s.index("</svg>")+6
                     d = {
                         'output_type': 'execute_result',
                         'execution_count': xcount(),
                         'metadata': {},
                         'data': {
-                            'image/svg+xml': outsplit(s[p:]),
+                            'image/svg+xml': outsplit(o[p:q]),
                             'text/plain': ["<IPython.core.display.SVG object>"],
-                            # 'text/html': outsplit(s[p:])
                         }
                     }
                     self._jdict[0]['outputs'].append(d)
@@ -364,7 +369,6 @@ class Cell(object):
 
 
 
-
 class Worksheet(object):
     def __init__(self, filename=None, s=None):
         """
@@ -404,7 +408,7 @@ class Worksheet(object):
                 'kernelspec': kernelspec
             }
         }
-        return json.dumps(d, indent=4)
+        return json.dumps(d, indent=1)
 
 def sagews_to_jdict(filename, title='', author='', date='', outfile='', contents=True, remove_tmpdir=True):
     base = os.path.splitext(filename)[0]
