@@ -6,7 +6,31 @@ This little script converts a Sage Math Cloud online worksheet, (`.sagews`) into
 
 See folder examples for an example of a converted notebook.
 
+## Images
+
 The image inclusion is completely untested.
 
-@anteprandium
+## SVG
+
+So far, SVG inclusion works partially. If you open the notebook with ipython, you get
+
+    <IPython.core.display.SVG Object>
+
+instead of an image, but if you subsequently export the notebook to html, with
+
+     sage -ipython nbconvert SAGETEST.ipynb --to html
+
+then the exported html does indeed show the svg drawing in its full pixel-less glory.
+
+See [this html](./examples/SAGETEST.html) versus [this notebook](./examples/SAGETEST.ipynb)
+
+It also works properly if you export to latex (though this is provided converting the SVG to PDF): 
+
+     sage -ipython nbconvert SAGETEST.ipynb --to latex
+     
+
+
+
+
+--- @anteprandium
 

@@ -31,7 +31,7 @@
 
 
 """
-This is a modified sagews2pdf.py so that it outputs an iPython notebook. 
+This is a modified sagews2pdf.py so that it outputs an iPython notebook.
 
 Original copyright follows.
 
@@ -71,6 +71,18 @@ MARKERS = {'cell':u"\uFE20", 'output':u"\uFE21"}
 
 # TODO: this needs to use salvus.project_info() or an environment variable or something!
 site = 'https://cloud.sagemath.com'
+# TODO: this too needs customizing.
+kernelspec={
+    "display_name": "Sage 6.6",
+    "language": "",
+    "name": "sage_6_6"
+}
+
+DEBUG=False
+def dprint(s):
+    if DEBUG:
+        print s
+
 
 import argparse, base64, cPickle, json, os, shutil, sys, textwrap, HTMLParser, tempfile, urllib
 from uuid import uuid4
@@ -83,7 +95,10 @@ def escape_path(s):
 
 def wrap(s, c=90):
     return '\n'.join(['\n'.join(textwrap.wrap(x, c)) for x in s.splitlines()])
-
+    
+def outsplit(s):
+    return [t+'\n' for t in s.splitlines()]
+    
 ## Removed lots of code here.
 
 class Cell(object):
@@ -139,14 +154,18 @@ class Cell(object):
             }
         if 'i' in self.input_codes:   # hidden input
             # if it's hidden, skip it.
-            return 
-            
+            dprint("Ignoring cell "+self.input_uuid)
+            return
+
+        dprint("Processed cell "+self.input_uuid+" with codes "+self.input_uuid)
         self._jdict.append(d)
-        
+
 
     def do_cell_output(self):
         if 'o' in self.input_codes:  # hide output
-            return None
+            dprint("Ignoring output of cell "+self.input_uuid)
+            return # nothing to see here, move on
+            
         for x in self.output:
             if 'stdout' in x:
                 d = {
@@ -155,7 +174,9 @@ class Cell(object):
                     'text': [wrap(x['stdout'])]
                 }
                 self._jdict[0]['outputs'].append(d)
-                
+                dprint("Stdout output")
+                break
+
             if 'stderr' in x:
                 d = {
                     'output_type': 'stream',
@@ -163,7 +184,9 @@ class Cell(object):
                     'text': [wrap(x['stderr'])]
                 }
                 self._jdict[0]['outputs'].append(d)
-                
+                dprint("Stderr output")
+                break
+
             if 'code' in x:
                 # TODO: for now ignoring that not all code is Python...
                 # Should this be in a cell by itself?
@@ -173,7 +196,9 @@ class Cell(object):
                     'text': [wrap(x['code']['source'])]
                 }
                 self._jdict[0]['outputs'].append(d)
-                
+                dprint("Code output")
+                break
+
             if 'html' in x:
                 d = {
                     'output_type': 'execute_result',
@@ -184,19 +209,24 @@ class Cell(object):
                     'execution_count': None
                 }
                 self._jdict[0]['outputs'].append(d)
-                
+                dprint("HTML output")
+                break
+
             if 'md' in x:
                 d={
                     'cell_type': 'markdown',
                     'metadata': {},
                     'source': x['md']
                 }
-                # Overwrite the original cell:
+                # Overwrite the original cell and move on
                 self._jdict=[d]
-                
+                dprint("Markdown output, overwriting original cell and moving on")
+                return
+
             if 'interact' in x:
-                pass
-                
+                dprint("Interact output, moving on")
+                break
+
             if 'tex' in x:
                 val = x['tex']
                 s="$$%s$$"%val['tex'] if 'display' in val else "$%s$"%val['tex']
@@ -209,8 +239,11 @@ class Cell(object):
                     'metadata': {}
                 }
                 self._jdict[0]['outputs'].append(d)
-                
-            if 'file' in x:                
+                dprint("tex output")
+                break
+
+            if 'file' in x:
+                dprint("File output, keep posted...")
                 val = x['file']
                 #
                 if 'url' in val:
@@ -219,27 +252,34 @@ class Cell(object):
                 else:
                     filename = os.path.split(val['filename'])[-1]
                     target = "%s/blobs/%s?uuid=%s"%(site, escape_path(filename), val['uuid'])
-                    
+
                 try:
                     file_content=StringIO.StringIO(urllib.urlopen(target).read())
                 except:
                     print "Could not read %s, skipping."%target
                     return
-                    
+
                 base, ext = os.path.splitext(filename)
                 ext = ext.lower()[1:]
                 if ext in ['svg']:
+                    dprint("... SVG")
+                    s=file_content.getvalue()
+                    p=s.lower().index("<svg")
                     d = {
                         'output_type': 'execute_result',
                         'execution_count': None,
                         'metadata': {},
                         'data': {
-                            "image/svg+xml": [file_content.getvalue()],
-                            'text/plain': ["<SVG Object>\n"]
+                            "image/svg+xml": outsplit(s),
+                            'text/plain': ["<IPython.core.display.SVG Object>"],
+                            # 'text/html': outsplit(s[p:])
                         }
                     }
                     self._jdict[0]['outputs'].append(d)
+                    break
+
                 elif ext in ['jpg', 'png', 'eps', 'pdf']:
+                    dprint("..."+ext)
                     d = {
                         'output_type': 'execute_result',
                         'execution_count': None,
@@ -249,15 +289,34 @@ class Cell(object):
                         }
                     }
                     self._jdict[0]['outputs'].append(d)
+                    break
+
                 else:
-                    print "Skipping (%s: %s)"%(filename, target)
-                # else:
-                #     if target.startswith('http'):
-                #         s += '\\url{%s}'%target
-                #     else:
-                #         s += '\\begin{verbatim}['+target+']\\end{verbatim}'
-                #
-        # return s
+                    dprint("Fallback to link")
+                    d = {
+                        'output_type': 'execute_result',
+                        'execution_count': None,
+                        'metadata': {},
+                        'data': {
+                            'text/html': ['<a href="%s">%s</a>'%(target,target)]
+                        }
+                    }
+                    self._jdict[0]['outputs'].append(d)
+                    break
+
+            else:
+                dprint("Fallback to plain text")
+                d = {
+                    'output_type': 'execute_result',
+                    'execution_count': None,
+                    'metadata': {},
+                    'data': {
+                        'text/plain': [str(x)]
+                    }
+                }
+                self._jdict[0]['outputs'].append(d)
+                break
+
 
 
 
@@ -287,7 +346,7 @@ class Worksheet(object):
 
     def __len__(self):
         return len(self._cells)
-        
+
     def json(self, filename, title, author, date):
         dlist=[]
         for C in self._cells:
@@ -301,13 +360,9 @@ class Worksheet(object):
                 'title': title,
                 'author': author,
                 'date': date,
-                "kernelspec": {
-                 "display_name": "Sage 6.6",
-                 "language": "",
-                 "name": "sage_6_6"
-                },
+                "kernelspec": kernelspec
             },
-            
+
         }
         return json.dumps(d, indent=4)
 
@@ -321,7 +376,7 @@ def sagews_to_jdict(filename, title='', author='', date='', outfile='', contents
     W = Worksheet(filename)
     s=W.json(filename, title, author, date)
     open(nb,'w').write(s.encode('utf8'))
-    
+
 
 if __name__ == "__main__":
 
