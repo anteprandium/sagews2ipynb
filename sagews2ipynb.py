@@ -220,7 +220,7 @@ class Cell(object):
                 }
                 self._jdict[0]['outputs'].append(d)
                 dprint("Stdout output")
-                break
+                continue
 
             if 'stderr' in x:
                 d = {
@@ -230,7 +230,7 @@ class Cell(object):
                 }
                 self._jdict[0]['outputs'].append(d)
                 dprint("Stderr output")
-                break
+                continue
 
             if 'code' in x:
                 # TODO: for now ignoring that not all code is Python...
@@ -245,7 +245,7 @@ class Cell(object):
                 }
                 self._jdict[0]['outputs'].append(d)
                 dprint("Code output")
-                break
+                continue
 
             if 'html' in x:
                 d = {
@@ -258,13 +258,13 @@ class Cell(object):
                 }
                 self._jdict[0]['outputs'].append(d)
                 dprint("HTML output")
-                break
+                continue
 
             if 'md' in x:
                 d={
                     'cell_type': 'markdown',
                     'metadata': {},
-                    'source': x['md']
+                    'source': [x['md']]
                 }
                 # Overwrite the original cell and move on
                 prev_xcount()
@@ -274,7 +274,7 @@ class Cell(object):
 
             if 'interact' in x:
                 dprint("Interact output, moving on")
-                break
+                continue
 
             if 'tex' in x:
                 val = x['tex']
@@ -289,7 +289,7 @@ class Cell(object):
                 }
                 self._jdict[0]['outputs'].append(d)
                 dprint("tex output")
-                break
+                continue
 
             if 'file' in x:
                 dprint("File output, keep posted...")
@@ -319,14 +319,14 @@ class Cell(object):
                     d = {
                         'output_type': 'execute_result',
                         'execution_count': xcount(),
-                        'metadata': {},
+                        'metadata': {'isolated': True},
                         'data': {
                             'image/svg+xml': outsplit(o[p:q]),
                             'text/plain': ["<IPython.core.display.SVG object>"],
                         }
                     }
                     self._jdict[0]['outputs'].append(d)
-                    break
+                    continue
 
                 elif ext in ['jpg', 'png', 'eps', 'pdf']:
                     dprint("..."+ext)
@@ -339,7 +339,7 @@ class Cell(object):
                         }
                     }
                     self._jdict[0]['outputs'].append(d)
-                    break
+                    continue
 
                 else:
                     dprint("Fallback to link")
@@ -352,7 +352,7 @@ class Cell(object):
                         }
                     }
                     self._jdict[0]['outputs'].append(d)
-                    break
+                    continue
 
             else:
                 dprint("Fallback to plain text")
@@ -365,7 +365,7 @@ class Cell(object):
                     }
                 }
                 self._jdict[0]['outputs'].append(d)
-                break
+                continue
 
 
 
