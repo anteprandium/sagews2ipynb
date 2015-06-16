@@ -247,18 +247,33 @@ class Cell(object):
                 dprint("Code output")
                 continue
 
+#            if 'html' in x:
+#                d = {
+#                    'output_type': 'execute_result',
+#                    'data': {
+#                        'text/html': [x['html']]
+#                    },
+#                    'metadata': {},
+#                    'execution_count': xcount()
+#                }
+#                #self._jdict[0]['outputs'].append(d)
+#                self._jdict=[d]
+#                dprint("HTML output")
+#                continue
+
             if 'html' in x:
-                d = {
-                    'output_type': 'execute_result',
-                    'data': {
-                        'text/html': [x['html']]
-                    },
+                # for now, just read HTML in as markdown cell, since Jupyter
+                # doesn't seem to handle HTML cells in the form above.
+                d={
+                    'cell_type': 'markdown',
                     'metadata': {},
-                    'execution_count': xcount()
+                    'source': [x['html']]
                 }
-                self._jdict[0]['outputs'].append(d)
-                dprint("HTML output")
-                continue
+                # Overwrite the original cell and move on
+                prev_xcount()
+                self._jdict=[d]
+                dprint("Markdown output, overwriting original cell and moving on")
+                return
 
             if 'md' in x:
                 d={
@@ -314,18 +329,25 @@ class Cell(object):
                     dprint("... SVG")
                     o=file_content.getvalue()
                     s=o.lower()
-                    p=s.index("<svg")
-                    q=s.index("</svg>")+6
-                    d = {
-                        'output_type': 'execute_result',
-                        'execution_count': xcount(),
-                        'metadata': {'isolated': True},
-                        'data': {
-                            'image/svg+xml': outsplit(o[p:q]),
-                            'text/plain': ["<IPython.core.display.SVG object>"],
+                    # put in try-except since this might be running on a local
+                    # machine, and then *s* will contain something like "blob
+                    # <UID> not found" instead of containing SVG code
+                    try:
+                        p=s.index("<svg")
+                        q=s.index("</svg>")+6
+                        d = {
+                            'output_type': 'execute_result',
+                            'execution_count': xcount(),
+                            'metadata': {'isolated': True},
+                            'data': {
+                                'image/svg+xml': outsplit(o[p:q]),
+                                'text/plain': ["<IPython.core.display.SVG object>"],
+                            }
                         }
-                    }
-                    self._jdict[0]['outputs'].append(d)
+                        self._jdict[0]['outputs'].append(d)
+                    except ValueError:
+                        pass
+
                     continue
 
                 elif ext in ['jpg', 'png', 'eps', 'pdf']:
